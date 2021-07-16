@@ -7,6 +7,7 @@ variables:
   tfStateAzureStorageAccountSku: 'Standard_LRS'
   tfStateAzureStorageAccountName: 'frantstate8216'
   tfStateContainerName: 'tstate'
+  tfStateKeyName: "terraform.tfstate"
 stages:
 - stage: Build
   jobs:
@@ -36,7 +37,7 @@ stages:
         backendAzureRmStorageAccountName: $(tfStateAzureStorageAccountName)
         # backendAzureRmStorageAccountSku: $(tfStateAzureStorageAccountSku)
         backendAzureRmContainerName: $(tfStateContainerName)
-        backendAzureRmKey: 'common.tfstate'
+        backendAzureRmKey: $(tfStateKeyName)
     - task: TerraformCLI@0
       displayName: 'check terraform version'     
       inputs:
