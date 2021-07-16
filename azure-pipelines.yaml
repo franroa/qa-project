@@ -1,0 +1,103 @@
+name: Azure Pipelines
+variables:
+  python.version: '3.7.6'
+  terraformVersion: 0.12.3
+  azureSubscriptionServiceConnectionName: 'franstate2-connection'
+  tfStateResourceGroupName: 'frantstate'
+  tfStateAzureStorageAccountSku: 'Standard_LRS'
+  tfStateAzureStorageAccountName: 'frantstate8216'
+  tfStateContainerName: 'tstate'
+stages:
+- stage: Build
+  jobs:
+  - job: Build
+    pool:
+      name: Hosted Ubuntu 1604
+    steps:
+    - task: InstallSSHKey@0
+      inputs:
+        knownHostsEntry: 'ssh.dev.azure.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC7Hr1oTWqNqOlzGJOfGJ4NakVyIzf1rXYd4d7wo6jBlkLvCA4odBlL0mDUyZ0/QUfTTqeu+tm22gOsv+VrVTMk6vwRU75gY/y9ut5Mb3bR5BV58dKXyq9A9UeB5Cakehn5Zgm6x1mKoVyf+FFn26iYqXJRgzIZZcZ5V6hrE0Qg39kZm4az48o0AUbf6Sp4SLdvnuMa2sVNwHBboS7EJkm57XQPVU3/QpyNLHbWDdzwtrlS+ez30S3AdYhLKEOxAG8weOnyrtLJAUen9mTkol8oII1edf7mWWbWVf0nBmly21+nZcmCTISQBtdcyPaEno7fFQMDD26/s0lfKob4Kw8H'
+        sshPublicKey: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDQ0+VenSGCtayIe7ixkMQFHrEFfin3guA3EfwXS46+mR3j4+j5rAomgi7MzcLMUIEu12Dtfg2SpvH9VfgfMZjEmASqdtPUhTmGZqEJv9HNrbI6UHrHZsncygDYfbMpqXVGO5asX2RKFTRODJKGLVr+d6PFuCTjN6D5BQ4hQKecumLQSQMXkXlMGhG6RPGolEUyK6caUvHRryVISm6R/1yES1BXDk4++91MM+gEuPMYycAOjt5s1oqxTniBAIVJLONQ8906fJNtcykgDQI7sYCFXz20IDXm0kTwFt0on6eYIw1Q+bdtv+7lO11wWDl0FwWJvWRDfAOe2KOr4uoUsCLIZyFRprLWU21rQVVQGQN0MR005M2m6y/7DjjJe1GuSBe5GBU2EngMoPnK68ieA46n+9Z1AlXCeHaFvwKi29YAQov6WCz/mB5QsEZgTBEQm6ql/BdFVXPMQDSC/JSkO+oQBQq0F68dXMPYeD32TshN9ILRyIAFxIV3dlyO2ynwgt0= franroa@ubuntu'
+        sshKeySecureFile: 'gitlab_course'
+    # - task: TerraformInstaller
+    #   displayName: install terraform
+    #   inputs:
+    #     terraformVersion: latest
+    - task: charleszipp.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-cli.TerraformCLI@0
+      displayName: 'terraform init'
+      inputs:
+        command: init
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+        backendType: azurerm
+        backendServiceArm: $(azureSubscriptionServiceConnectionName)
+        # ensureBackend: true
+        backendAzureRmResourceGroupLocation: "eastus"
+        backendAzureRmResourceGroupName: $(tfStateResourceGroupName)
+        backendAzureRmStorageAccountName: $(tfStateAzureStorageAccountName)
+        # backendAzureRmStorageAccountSku: $(tfStateAzureStorageAccountSku)
+        backendAzureRmContainerName: $(tfStateContainerName)
+        backendAzureRmKey: 'common.tfstate'
+    - task: TerraformCLI@0
+      displayName: 'check terraform version'     
+      inputs:
+        provider: 'azurerm'
+        environmentServiceName: 'franstate2-connection'
+        runAzLogin: true
+        command: 'init'
+        # backendServiceArm: 'tamopstf'
+        # backendAzureRmResourceGroupName: 'frantstate'
+        # backendAzureRmStorageAccountName: 'frantstate28747'
+        # backendAzureRmContainerName: 'tstate'
+        # backendAzureRmKey: 'terraform.tfstate'
+        # workingDirectory: terraform
+    - task: ArchiveFiles@2
+      displayName: 'Archive FakeRestAPI'
+      inputs:
+        rootFolderOrFile: 'automatedtesting/jmeter/fakerestapi'
+        includeRootFolder: false
+        archiveType: 'zip'
+        archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId)-fakerestapi.zip'
+    - publish: $(Build.ArtifactStagingDirectory)/$(Build.BuildId)-fakerestapi.zip
+      displayName: 'Upload Package'
+      artifact: drop-fakerestapi
+- stage:
+  jobs:
+  - deployment: FakeRestAPI
+    pool:
+      vmImage: 'Ubuntu-16.04'
+    environment: 'TEST'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureWebApp@1
+            displayName: 'Deploy Azure Web App'
+            inputs:
+              azureSubscription: "franstate2-connection"
+              appName: 'frantest-AppService'
+              appType: webApp
+              package: $(Pipeline.Workspace)/drop-fakerestapi/$(Build.BuildId)-fakerestapi.zip
+  # - deployment: VMDeploy
+  #   displayName: NAME
+  #   environment:
+  #     name:  ENVIRONMENT NAME
+  #     resourceType: VirtualMachine
+  #     tags: TAG NAME
+  #   strategy:
+  #     runOnce:
+  #       deploy:
+  #         steps:
+  #         - task: Bash@3
+  #           inputs:
+  #             targetType: 'inline'
+  #             script: |
+  #               #! /bin/bash
+                
+  #               sudo apt-get upgrade -y
+  #               sudo apt-get install python3-pip -y
+  #               sudo apt-get install unzip -y
+  #               sudo apt-get install -y chromium-browser
+  #               pip3 install selenium
+  #               export PATH=$PATH:some/path
+
+

@@ -1,0 +1,7 @@
+/access_key
+/terraform/.terraform.lock.hcl
+/terraform/.terraform
+.terraform
+.idea
+__MACOSX
+/terraform/terraform.tfvars
