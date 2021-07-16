@@ -12,6 +12,7 @@ terraform {
     storage_account_name  = "frantstate8216"
     container_name        = "tstate"
     key                   = "terraform.tfstate"
+    access_key = "${var.access_key}"
   }
 }
 
